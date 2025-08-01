@@ -1,0 +1,112 @@
+function lesionMask = regionGrowLab(labImg, seedOrMask, L_tol)
+% regionGrowLab - Region growing in L*a*b* space from seed or user ROI mask.
+%
+% Inputs:
+%   labImg     - CIELab image (use rgb2lab(im2double(...)))
+%   seedOrMask - Either a binary ROI mask OR a seed coordinate [x, y]
+%   L_tol      - Tolerance threshold for L* similarity (e.g., 6–12)
+%
+% Output:
+%   lesionMask - Binary mask for lesion
+
+% ------------- Setup -------------
+max_bad_in_row = 3;  % how many consecutive "too bright" pixels allowed
+% Extract pixel channels
+L = labImg(:,:,1);
+a = labImg(:,:,2);
+b = labImg(:,:,3);
+[rows, cols] = size(L);
+visited = false(rows, cols);
+lesionMask = false(rows, cols);
+bad_counts = zeros(rows, cols);
+
+% ---------------------- Feature Weights --------------------------
+w_L = 1.6;     % Strong weight for L*
+w_a = 0.6;     % Moderate for a*
+w_b = 0.6;     % Moderate for b*
+w_x = 0.2;     % Low for X spatial
+w_y = 0.2;     % Low for Y spatial
+
+% ------------- Get Seed -------------
+if islogical(seedOrMask)
+    % It's a mask → use centroid as seed
+    props = regionprops(seedOrMask, 'Centroid');
+    seed = round(props(1).Centroid);  % [x, y]
+elseif isnumeric(seedOrMask) && numel(seedOrMask) == 2
+    seed = round(seedOrMask);  % assume [x, y] directly
+else
+    error('Second argument must be either a binary mask or [x, y] seed point.');
+end
+
+% Convert seed to row, col
+seedRow = seed(2); seedCol = seed(1);
+
+% Debug: Show seed on image
+figure, imshow(L, []); hold on;
+plot(seedCol, seedRow, 'r+', 'MarkerSize', 12, 'LineWidth', 2);
+title('Seed Point for Region Growing (L* channel)');
+
+% ------------- Region Growing -------------
+queue = [seedRow, seedCol];  % Initialize queue with the starting seed pixel (row, col)
+% Extract seed feature vector
+seedFeature = [L(seedRow, seedCol), a(seedRow, seedCol), b(seedRow, seedCol), seedCol, seedRow];
+
+% Define 8-connected neighbors
+neighbors = [ -1  0;
+               1  0;
+               0 -1;
+               0  1;
+              -1 -1;
+              -1  1;
+               1 -1;
+               1  1];
+
+% Loop until all connected pixels that meet the criteria have been visited
+while ~isempty(queue)
+    pt = queue(1, :);
+    queue(1,:) = []; % pop first (FIFO)
+
+    r = pt(1); c = pt(2);
+
+    % Skip this pixel if it's outside the image bounds or already visited
+    if r < 1 || r > rows || c < 1 || c > cols || visited(r,c)
+        continue;
+    end
+
+    visited(r,c) = true;
+
+    % Current pixel's 5D feature
+    currFeature = [L(r,c), a(r,c), b(r,c), c, r];
+
+    % Weighted squared distance to seed
+    diff = currFeature - seedFeature;
+    dist = sqrt( ...
+        (w_L * diff(1))^2 + ...
+        (w_a * diff(2))^2 + ...
+        (w_b * diff(3))^2 + ...
+        (w_x * diff(4))^2 + ...
+        (w_y * diff(5))^2 );
+
+    % Accept pixel if distance below threshold
+    if dist <= L_tol
+        lesionMask(r,c) = true;
+        bad_counts(r,c) = 0; % reset
+    
+        % Add neighbors to queue
+        for k = 1:size(neighbors,1)
+            nr = r + neighbors(k,1);
+            nc = c + neighbors(k,2);
+            if nr >= 1 && nr <= rows && nc >= 1 && nc <= cols && ~visited(nr,nc)
+                queue(end+1,:) = [nr, nc]; %#ok<AGROW>
+            end
+        end
+    else
+        
+    end
+
+end
+
+figure, imshow(L, []); hold on;
+plot(seed(1), seed(2), 'r+', 'MarkerSize', 14, 'LineWidth', 2);
+title('Seed Point on L* Channel');
+end

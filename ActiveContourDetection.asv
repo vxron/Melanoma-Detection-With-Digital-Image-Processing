@@ -1,0 +1,78 @@
+clc;
+close all;
+
+% STYLING
+% Camel Case for Variable Names
+% Underscored for Constant Parameters
+
+% ----------------------- 0 IMAGE READING GUI ----------------------
+[FILENAME, PATHNAME] = uigetfile('*.jpg', 'Select the Image');
+filePath = strcat(PATHNAME,FILENAME);
+disp('The image file location you selected is:')
+disp(filePath);
+% Read in image
+im = imread(filePath);
+figure,imshow(im);
+title('0. Input Image:');
+
+
+clc;
+close all;
+
+% STYLING
+% Camel Case for Variable Names
+% Underscored for Constant Parameters
+
+% ----------------------- 0 GUI TO SELECT IMAGE ----------------------
+[FILENAME, PATHNAME] = uigetfile('*.jpg', 'Select the Lesion Image:');
+filePath = strcat(PATHNAME,FILENAME);
+disp('The image file location you selected is:')
+disp(filePath);
+% Read in image
+im = imread(filePath);
+figure,imshow(im);
+title('0. Input Image:');
+
+% ----------------------- 1 IMAGE PREPROCESSING --------------------
+% 1.1. Gray Scale
+iGray = rgb2gray(im);
+figure,imshow(uint8(iGray));
+title('1.1. Grayscaled Image:');
+
+% 1.2. Median Filtering
+% Goal: Remove impulse noise, small artifacts, salt-and-pepper pixels
+med_filt_length = 5; % 5x5 from dsp1.pdf; larger window removes more noise and wider hairs but risks over-smoothing smaller lesion details
+iMed = medfilt2(iGray, [med_filt_length med_filt_length]); 
+figure,imshow(uint8(iMed));
+title('1.2. Med Filtered Image:');
+
+% 1.3. Morphological Closing
+% Goal: Remove dark, crack-like artifacts (i.e. hair) by closing gaps in the foreground
+% Implementation: Disk moves over the image and applies dilation (expand white/bright regions) -->
+% erosion (resets white regions to normal size, but now holes/cracks are gone)
+disk_radius = 3;
+se = strel('disk', 3); % dsp1.pdf
+iClosed = imclose(iMed, se);
+figure,imshow(uint8(iClosed));
+title('1.3. Morphologically Closed Image:');
+
+% 1.3. Adaptive Histogram Equalization
+% Goal: Improve local contrast in poorly lit images without global brightness shift.
+imEq = adapthisteq(iClosed, 'ClipLimit', 0.005); % Lower clipLimit = less contrast boost; 
+figure, imshow(imEq);
+title('1.4. Adaptive Histogram Equalized Image (Grayscale)');
+
+% 1.4. 
+
+% Let user manually trace the lesion area using freehand tool
+disp('Draw around the lesion and double-click to finish.');
+figure('Name', 'Draw Around Lesion Then Double-Click');
+imshow(im); title('1. Draw Around Lesion Then Double-Click');
+roi = drawfreehand();
+wait(roi);                        % Wait for user to finish
+userMask = createMask(roi);       % Converts drawing to binary mask
+figure, imshow(userMask);
+title('0. Initial User-Drawn Mask');
+
+
+

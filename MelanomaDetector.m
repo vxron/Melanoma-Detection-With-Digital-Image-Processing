@@ -1,0 +1,143 @@
+clc;
+close all;
+
+% STYLING
+% Camel Case for Variable Names
+% Underscored for Constant Parameters
+
+% ----------------------- 0 IMAGE READING GUI ----------------------
+[FILENAME, PATHNAME] = uigetfile('*.jpg', 'Select the Image');
+filePath = strcat(PATHNAME,FILENAME);
+disp('The image file location you selected is:')
+disp(filePath);
+% Read in image
+im = imread(filePath);
+figure,imshow(im);
+title('0. Input Image:');
+
+% ----------------------- 2 GUI TO DRAW MASK ----------------------
+% Let user manually trace the lesion area using freehand tool
+disp('Draw rough ROI around the lesion and double-click to finish.');
+figure('Name', 'Draw ROI', 'NumberTitle', 'off');
+imshow(im); title('Draw Rough ROI Around Lesion, Then Double-Click!');
+roi = drawfreehand();
+wait(roi);                        % Wait for user to finish
+userMask = createMask(roi);       % Converts drawing to binary mask
+% 3. Use ROI to extract a bounding box from the image
+props = regionprops(userMask, 'BoundingBox');
+cropBox = round(props(1).BoundingBox);
+% Crop image and ROI to the region
+croppedImg = im(cropBox(2):(cropBox(2)+cropBox(4)-1), ...
+                cropBox(1):(cropBox(1)+cropBox(3)-1), :);
+figure, imshow(croppedImg);
+title('2. Initial User-Drawn Mask');
+
+% ----------------------- 1 IMAGE PREPROCESSING --------------------
+% 1.1. Gray Scale
+iGray = rgb2gray(croppedImg);
+figure,imshow(uint8(iGray));
+title('1.1. Grayscaled Image:');
+
+% 1.2. Median Filtering
+% Goal: Remove impulse noise, small artifacts, salt-and-pepper pixels
+med_filt_length = 5; % 5x5 from dsp1.pdf; larger window removes more noise and wider hairs but risks over-smoothing smaller lesion details
+iMed = medfilt2(iGray, [med_filt_length med_filt_length]); 
+figure,imshow(uint8(iMed));
+title('1.2. Med Filtered Image:');
+
+% 1.3. Morphological Closing
+% Goal: Remove dark, crack-like artifacts (i.e. hair) by closing gaps in the foreground
+% Implementation: Disk moves over the image and applies dilation (expand white/bright regions) -->
+% erosion (resets white regions to normal size, but now holes/cracks are gone)
+disk_radius = 3;
+se = strel('disk', 3); % dsp1.pdf
+iClosed = imclose(iMed, se);
+figure,imshow(uint8(iClosed));
+title('1.3. Morphologically Closed Image:');
+
+% POSSIBLE THAT THIS SHOULD ONLY BE DONE IN PART, i.e. not FULL
+% equalization
+% 1.4.Contrast Enhancement (Histogram Equalization)
+% Goal: Improve lesion-skin contrast by equalizing pixel intensities, especially in poorly lit images
+% iEq = histeq(iClosed);
+iEq = iClosed;
+figure,imshow(uint8(iEq));
+title('1.4. Histogram Equalized Image:');
+
+%%% IDK IF WE REALLY NEED THIS YET
+% 1.5. Gaussian Smoothing Filter (ref. dsp7.pdf)
+% Goal: Further smooth out high frequency noise and small texture variations before segmentation (at the cost of blur)
+sigma = 1.2; % Variance; shouldn't be too big since we don't want to cause significant blurring
+g_filt_length = 9; % rule of thumb: filtersize = 6*sigma, rounded to next odd number
+G = fspecial('gaussian', [g_filt_length g_filt_length], sigma);
+iSmooth = conv2(double(iEq), G, 'same'); % Convolution with Gaussian filter
+figure, imshow(uint8(iSmooth));
+title('1.5. Gaussian Filter Output:');
+
+
+% --------------------- 2 IMAGE SEGMENTATION -----------------------
+% Otsu's Segmentation Method (another paper.pdf and dsp1.pdf)
+% Goal: Segment the lesion (foreground) from surrounding healthy skin
+% (background) by finding a global intensity threshold that best separates
+% two classes: lesion pixels & skin/background pixels
+
+% todo: see most recent convo w chat...
+% not working to well with darker skin tones rn
+% todo 1: add centering first and logic to ask if returned mask is centered
+% and compact (not scattered across edges)
+% todo 2: play around with local histogram equalization rather than
+% brightening the whole image
+
+% Original Image Properties
+[rows, columns] = size(iSmooth);
+areaTot = rows*columns;
+
+% 2.1. Make Otsu's Mask
+iNorm = uint8(mat2gray(iSmooth)*255);
+level = graythresh(iNorm); % computes otsu's thresh in [0,1]
+iOtsu = imbinarize(iNorm, level); % binarizes image using Otsu's threshold
+iOtsu = imcomplement(iOtsu); % since lesion will be darker than skin
+iClean = bwareafilt(iOtsu,1); % keep only largest region
+iFilled = imfill(iClean,'holes');
+
+% Reconstruct full-size mask from cropped region
+fullMask = false(size(im,1), size(im,2));  % 2D, matching im height/width
+fullMask(cropBox(2):(cropBox(2)+cropBox(4)-1), ...
+         cropBox(1):(cropBox(1)+cropBox(3)-1)) = iFilled;
+
+% Then apply to original RGB image
+iMaskedRgb = bsxfun(@times, im, cast(fullMask, 'like', im));
+
+figure, imshow(iClean);
+title('2.1. Binary (Segmented) Image:');
+figure, imshow(iFilled);
+title('2.1. Binary (Segmented) Filled Image:');
+figure, imshow(iMaskedRgb);
+title('2.1. RGB Image Mask:');
+
+
+% ------------------------ 3 FEATURE EXTRACTION -----------------------
+% 3.1. Assymetry
+% Obtain Binarized Image Properties
+stats = regionprops(iOtsu,'all');
+% Obtain Area Values of All Blobs in Binarized Image
+allAreas = [stats.Area];
+% Find Largest Area
+[maxArea,maxIndx] = max(allAreas);
+% Check Symmetry
+centroids = [stats.Centroid];
+xCentroid = centroids(2*(maxIndx-1)+1);
+yCentroid = centroids(2*(maxIndx-1)+2);
+middlex = columns/2;
+middley = rows/2;
+deltax = middlex - xCentroid;
+deltay = middley - yCentroid;
+binaryImage = imtranslate(iOtsu, [deltax, deltay]);
+orientations = [stats.Orientation];
+angle = -1.*orientations(maxIndx);
+rotatedImage = imrotate(binaryImage, angle, 'crop');
+props2 = regionprops(rotatedImage,'all');
+imshow(rotatedImage);
+
+
+
