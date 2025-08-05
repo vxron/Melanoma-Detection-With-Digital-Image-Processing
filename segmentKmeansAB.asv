@@ -28,10 +28,18 @@ Xdata = [abl, pos];  % Xdata = [L*, a*, b*, y, x]
 
 % Normalize position scale to match a* and b* scale
 % Spatial weight parameter selected by inspection
-spatialWeight = 10;  % Lower weight on spatial features vs color
-Xdata(:,3) = Xdata(:,3) / max(Xdata(:,3)) * spatialWeight;
+% Feature weights
+L_weight = 6.0;     % 🟢 HIGH priority: lesion often darker
+a_weight = 0.7;     % 🟡 Moderate: distinguish red/green
+b_weight = 0.7;     % 🟡 Moderate: distinguish blue/yellow
+spatialWeight = 1.0; % 🔵 Low–medium: just enough to keep it compact
+
+% Normalize each feature range to [0, 1]
+Xdata(:,1) = Xdata(:,1) / 100 * L_weight;       % L* ∈ [0, 100]
+Xdata(:,2) = (Xdata(:,2)+128)/255 * a_weight;   % a* ∈ [-128, 127]
+Xdata(:,3) = (Xdata(:,3)+128)/255 * b_weight;   % b* ∈ [-128, 127]
 Xdata(:,4) = Xdata(:,4) / max(Xdata(:,4)) * spatialWeight;
-Xdata(:,1) = Xdata(:,1) / max(Xdata(:,1)) * 100;
+Xdata(:,5) = Xdata(:,5) / max(Xdata(:,5)) * spatialWeight;
   
 % Initialize K means (k random cluster centers between 0 and 1)
 mean1 = Xdata(randperm(nPixels, k), :);  % Randomly choose k pixels as centers
@@ -63,7 +71,7 @@ for iter = 2:numIterations
     end
    
     % === Update means for this iteration ===
-    newMeans = zeros(k, 4); % New cluster centers
+    newMeans = zeros(k, 5); % New cluster centers
     for i = 1:nPixels
         for j = 1:k
             % When Rnk is 0 (no corresponding pixels attached to the cluster), skip updating this mean to avoid div by 0
@@ -82,14 +90,12 @@ for iter = 2:numIterations
     % Check difference between cost of this iteration and previous iteration
     if (abs(J1(iter)-J1(iter-1))<convergenceThresh)
         break; % Break if convergence
-    end
-
-    % Assign each pixel to final cluster
-    [~, labels] = max(Rnk, [], 2);
-    pixel_labels = reshape(labels, nRows, nCols);
-        
+    end    
 end
 
+% Assign each pixel to final cluster
+[~, labels] = max(Rnk, [], 2);
+pixel_labels = reshape(labels, nRows, nCols);
 
 
 

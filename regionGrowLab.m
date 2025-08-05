@@ -1,4 +1,4 @@
-function lesionMask = regionGrowLab(labImg, seedOrMask, L_tol)
+function lesionMask = regionGrowLab(labImg, seedOrMask, L_tol, isDebug)
 % regionGrowLab - Region growing in L*a*b* space from seed or user ROI mask.
 %
 % Inputs:
@@ -20,14 +20,13 @@ visited = false(rows, cols);
 lesionMask = false(rows, cols);
 bad_counts = zeros(rows, cols);
 % Global tolerance multiplier for seed comparison
-tol_seed = L_tol * 1.25;
+tol_seed = L_tol * 1.5;
 
 distanceMap_region = nan(rows, cols);
 distanceMap_seed   = nan(rows, cols);
 
-
 % ---------------------- Feature Weights --------------------------
-w_L = 5.0;     % Strong weight for L*
+w_L = 6.0;     % Strong weight for L*
 w_a = 0.6;     % Moderate for a*
 w_b = 0.6;     % Moderate for b*
 w_x = 0.05;     % Low for X spatial
@@ -35,23 +34,33 @@ w_y = 0.05;     % Low for Y spatial
 
 % ------------- Get Seed -------------
 if islogical(seedOrMask)
-    % It's a mask → use centroid as seed
-    props = regionprops(seedOrMask, 'Centroid');
-    seed = round(props(1).Centroid);  % [x, y]
+    % Find darkest pixel inside the mask (lowest L* value)
+    L = labImg(:,:,1);
+    L_masked = L;
+    L_masked(~seedOrMask) = NaN;
+
+    [minVal, linearIdx] = min(L_masked(:));
+    [rIdx, cIdx] = ind2sub(size(L_masked), linearIdx);
+
+    seed = [cIdx, rIdx];  % [x, y] format
 elseif isnumeric(seedOrMask) && numel(seedOrMask) == 2
-    disp("detected seed!")
+    if isDebug
+        disp("detected seed!")
+    end
     seed = round(seedOrMask);  % assume [x, y] directly
 else
     error('Second argument must be either a binary mask or [x, y] seed point.');
 end
 
+
 % Convert seed to row, col
 seedRow = seed(2); seedCol = seed(1);
 
-% Debug: Show seed on image
-figure, imshow(L, []); hold on;
-plot(seedCol, seedRow, 'r+', 'MarkerSize', 12, 'LineWidth', 2);
-title('Seed Point for Region Growing (L* channel)');
+if isDebug
+    figure, imshow(L, []); hold on;
+    plot(seedCol, seedRow, 'r+', 'MarkerSize', 12, 'LineWidth', 2);
+    title('Seed Point for Region Growing (L* channel)');
+end
 
 % ------------- Region Growing -------------
 % Extract seed feature vector
@@ -128,17 +137,16 @@ while ~isempty(queue)
 
 end
 
-% Visualize distances
-figure;
-subplot(1,2,1); imagesc(distanceMap_region); colorbar; title('Distance to Parent');
-subplot(1,2,2); imagesc(distanceMap_seed); colorbar; title('Distance to Seed');
-
-
-
-figure, imshow(L, []); hold on;
-plot(seed(1), seed(2), 'r+', 'MarkerSize', 14, 'LineWidth', 2);
-title('Seed Point on L* Channel');
-
-figure; imshow(labeloverlay(L, lesionMask));
-title('Region Growing: Region + Seed Distance');
+if isDebug
+    figure;
+    subplot(1,2,1); imagesc(distanceMap_region); colorbar; title('Distance to Parent');
+    subplot(1,2,2); imagesc(distanceMap_seed); colorbar; title('Distance to Seed');
+    
+    figure, imshow(L, []); hold on;
+    plot(seed(1), seed(2), 'r+', 'MarkerSize', 14, 'LineWidth', 2);
+    title('Seed Point on L* Channel');
+    
+    figure; imshow(labeloverlay(L, lesionMask));
+    title('Region Growing: Region + Seed Distance');
+end
 end

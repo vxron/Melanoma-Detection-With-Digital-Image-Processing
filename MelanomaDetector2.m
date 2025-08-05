@@ -79,13 +79,10 @@ title('1.4. Gaussian Filtered RGB Image');
 % 2.1. Convert to CIELab
 % Goal: Convert the preprocessed RGB image (imSmooth) to L*a*b* color space
 labIm = rgb2lab(im2double(imSmooth));
-figure, imshow(labIm(:,:,1), []); title('2.1. L* Channel (Lightness)');
-figure, imshow(labIm(:,:,2), []); title('2.1. a* Channel (Red-Green)');
-figure, imshow(labIm(:,:,3), []); title('2.1. b* Channel (Blue-Yellow)');
 
 % 2.2. K-means Clustering (according to a*b*) using Custom Lab Function
 % Segment & Reconstruct cluster labels into image form
-pixel_labels = segmentKmeansAB(labIm, 3, 20, 5);
+pixel_labels = segmentKmeansAB(labIm, 3, 20, 10);
 figure, imshow(label2rgb(pixel_labels)), title('2.2. K-means Cluster Labels (RGB-coded)');
 
 % 2.3. Choose Lesion Cluster (Compare Two Methods)
@@ -98,13 +95,6 @@ for k = 1:nColors
 end
 [~, lesion_Lstar] = min(meanL);  % Darkest cluster
 
-% --- Method B: Region Area (largest region is likely the lesion)
-areaList = zeros(nColors, 1);
-for k = 1:nColors
-    areaList(k) = sum(pixel_labels(:) == k);
-end
-[~, lesion_Area] = max(areaList);  % Largest cluster
-
 % most important heuristic --> cluster should be "circular" in shape (not
 % hella long)
 % acc most important heuristic --> cluster should be the one that has all
@@ -112,17 +102,12 @@ end
 
 % 2.4. Decide Best Cluster
 % Combine both heuristics: choose the cluster that appears in both top 2 for darkness & area
-rankingScore = (meanL - min(meanL)) / range(meanL) + ...  % normalize and weight
-               (max(areaList) - areaList) / range(areaList);
-[~, lesionCluster] = min(rankingScore);  % Lower score = darker + larger
 
 % (Debugging) Show the two options and the final chosen one
 figure, imshow(pixel_labels == lesion_Lstar); title('2.3A. Lesion Candidate by L* Intensity');
-figure, imshow(pixel_labels == lesion_Area); title('2.3B. Lesion Candidate by Region Size');
-figure, imshow(pixel_labels == lesionCluster); title('2.4. Final Selected Lesion Cluster');
 
 % 2.5. Create Binary Mask
-Ibin = pixel_labels == lesionCluster;
+Ibin = pixel_labels == lesion_Lstar;
 figure, imshow(Ibin); title('2.5. Initial Binary Mask (Pre-cleanup)');
 
 % 2.6. Clean Up Mask
@@ -134,7 +119,7 @@ figure, imshow(Ibin); title('2.6. Cleaned Binary Mask');
 
 % 2.7. Apply Mask to RGB Image
 % Isolate lesion in RGB space
-maskedRgbImage = bsxfun(@times, im, cast(Ibin, 'like', im));
+maskedRgbImage = bsxfun(@times, croppedImg, cast(Ibin, 'like', croppedImg));
 figure, imshow(maskedRgbImage); title('2.7. RGB Lesion Isolated via Mask');
 
 

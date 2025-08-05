@@ -26,13 +26,11 @@ pos = [Y(:), X(:)];  % row-major positions
 % Combine color and spatial features
 Xdata = [abl, pos];  % Xdata = [L*, a*, b*, y, x]
 
-% Normalize position scale to match a* and b* scale
 % Spatial weight parameter selected by inspection
-% Feature weights
-L_weight = 2.0;     % 🟢 HIGH priority: lesion often darker
-a_weight = 0.7;     % 🟡 Moderate: distinguish red/green
-b_weight = 0.7;     % 🟡 Moderate: distinguish blue/yellow
-spatialWeight = 0.5; % 🔵 Low–medium: just enough to keep it compact
+L_weight = 6.0;     % HIGH priority: lesion often darker
+a_weight = 0.7;     % Moderate: distinguish red/green
+b_weight = 0.7;     % Moderate: distinguish blue/yellow
+spatialWeight = 1.0; % Low–medium: just enough to keep it compact
 
 % Normalize each feature range to [0, 1]
 Xdata(:,1) = Xdata(:,1) / 100 * L_weight;       % L* ∈ [0, 100]

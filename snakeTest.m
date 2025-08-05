@@ -15,4 +15,4 @@ im = imread(filePath);
 figure,imshow(im);
 title('0. Input Image:');
 
-asSnakeSegmentationOut(im)
+asSnakeSegmentation(im)

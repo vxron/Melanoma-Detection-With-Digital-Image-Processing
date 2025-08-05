@@ -84,11 +84,11 @@ figure, imshow(labIm(:,:,2), []); title('2.1. a* Channel (Red-Green)');
 figure, imshow(labIm(:,:,3), []); title('2.1. b* Channel (Blue-Yellow)');
 
 % Region growing segmentation using L* channel
-L_tolerance = 10;  % can tweak depending on how inclusive you want it; increasing for some images rlly helps
+L_tolerance = 100;  % can tweak depending on how inclusive you want it; increasing for some images rlly helps
 roiLocal = userMask(cropBox(2):(cropBox(2)+cropBox(4)-1), ...
                     cropBox(1):(cropBox(1)+cropBox(3)-1));
 
-lesionMask = regionGrowLab(labIm, roiLocal, L_tolerance);
+lesionMask = regionGrowLab(labIm, roiLocal, L_tolerance, 1);
 
 % Show result
 figure, imshow(lesionMask); title('2.1. Region-Grown Lesion Mask');
