@@ -6,14 +6,38 @@ close all;
 % Underscored for Constant Parameters
 
 % ----------------------- 0 IMAGE READING GUI ----------------------
-[FILENAME, PATHNAME] = uigetfile('*.jpg', 'Select the Image');
-filePath = strcat(PATHNAME,FILENAME);
-disp('The image file location you selected is:')
-disp(filePath);
-% Read in image
-im = imread(filePath);
-figure,imshow(im);
-title('0. Input Image:');
+% Path to image folder
+imgFolder = 'lesion_images';
+imgFiles = dir(fullfile(imgFolder, '*.jpg'));
+
+% Preallocate (adjust 4 if you have more features)
+numImages = numel(imgFiles);
+features = zeros(numImages, 4);
+labels = zeros(numImages, 1); % 1 = melanoma, 0 = not
+
+% Loop through all images
+for i = 1:numImages
+    filename = imgFiles(i).name;
+    filepath = fullfile(imgFolder, filename);
+
+    % Extract features using your function
+    features(i, :) = extractFeaturesFromImage(filepath);
+
+    % Label based on filename (case-insensitive match)
+    if contains(lower(filename), 'melanoma')
+        labels(i) = 1;
+    else
+        labels(i) = 0;
+    end
+end
+
+% Convert to table
+T = array2table(features, 'VariableNames', {'Darkness', 'ColorCount', 'Asymmetry', 'Circularity'});
+T.Label = labels;
+
+% Save for Classification Learner App
+writetable(T, 'lesion_features.csv');
+disp('Feature table saved as lesion_features.csv');
 
 % ----------------------- 2 GUI TO DRAW MASK ----------------------
 % Let user manually trace the lesion area using freehand tool
@@ -28,7 +52,7 @@ props = regionprops(userMask, 'BoundingBox');
 cropBox = round(props(1).BoundingBox);
 % Crop image and ROI to the region
 croppedImg = im(cropBox(2):(cropBox(2)+cropBox(4)-1), ...
-                  cropBox(1):(cropBox(1)+cropBox(3)-1));
+                cropBox(1):(cropBox(1)+cropBox(3)-1), :);
 figure, imshow(croppedImg);
 title('2. Initial User-Drawn Mask');
 
@@ -99,7 +123,14 @@ iOtsu = imbinarize(iNorm, level); % binarizes image using Otsu's threshold
 iOtsu = imcomplement(iOtsu); % since lesion will be darker than skin
 iClean = bwareafilt(iOtsu,1); % keep only largest region
 iFilled = imfill(iClean,'holes');
-iMaskedRgb = bsxfun(@times, im, cast(iFilled, 'like', im));
+
+% Reconstruct full-size mask from cropped region
+fullMask = false(size(im,1), size(im,2));  % 2D, matching im height/width
+fullMask(cropBox(2):(cropBox(2)+cropBox(4)-1), ...
+         cropBox(1):(cropBox(1)+cropBox(3)-1)) = iFilled;
+
+% Then apply to original RGB image
+iMaskedRgb = bsxfun(@times, im, cast(fullMask, 'like', im));
 
 figure, imshow(iClean);
 title('2.1. Binary (Segmented) Image:');
