@@ -27,10 +27,10 @@ pos = [Y(:), X(:)];  % row-major positions
 Xdata = [abl, pos];  % Xdata = [L*, a*, b*, y, x]
 
 % Spatial weight parameter selected by inspection
-L_weight = 6.0;     % HIGH priority: lesion often darker
+L_weight = 6.99;     % HIGH priority: lesion often darker
 a_weight = 0.7;     % Moderate: distinguish red/green
 b_weight = 0.7;     % Moderate: distinguish blue/yellow
-spatialWeight = 1.0; % Low–medium: just enough to keep it compact
+spatialWeight = 1.2; % Low–medium: just enough to keep it compact
 
 % Normalize each feature range to [0, 1]
 Xdata(:,1) = Xdata(:,1) / 100 * L_weight;       % L* ∈ [0, 100]

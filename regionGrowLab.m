@@ -10,7 +10,7 @@ function lesionMask = regionGrowLab(labImg, seedOrMask, L_tol, isDebug)
 %   lesionMask - Binary mask for lesion
 
 % ------------- Setup -------------
-max_bad_in_row = 3;  % how many consecutive "too bright" pixels allowed
+max_bad_in_row = 2;  % how many consecutive "too bright" pixels allowed
 % Extract pixel channels
 L = labImg(:,:,1);
 a = labImg(:,:,2);
@@ -20,7 +20,7 @@ visited = false(rows, cols);
 lesionMask = false(rows, cols);
 bad_counts = zeros(rows, cols);
 % Global tolerance multiplier for seed comparison
-tol_seed = L_tol * 1.5;
+tol_seed = L_tol * 1.8;
 
 distanceMap_region = nan(rows, cols);
 distanceMap_seed   = nan(rows, cols);
@@ -52,6 +52,67 @@ else
     error('Second argument must be either a binary mask or [x, y] seed point.');
 end
 
+% ======= BEGIN ADAPTIVE FTR WEIGHT CALCULATION =======
+
+% Define initial lesion mask if not given
+if islogical(seedOrMask)
+    lesionMaskInit = seedOrMask;
+else
+    lesionMaskInit = false(size(L));
+    lesionMaskInit(seed(2), seed(1)) = true;
+end
+
+% Mean L* inside lesion
+meanL_lesion = mean(L(lesionMaskInit));
+
+% Approximate background skin by dilating lesion and subtracting lesion
+se = strel('disk', 5); % 5-pixel dilation
+ringMask = imdilate(lesionMaskInit, se) & ~lesionMaskInit;
+meanL_skin = mean(L(ringMask));
+
+% Contrast between lesion and skin
+contrastL = abs(meanL_skin - meanL_lesion);
+
+% Color variation inside lesion in a* and b*
+std_a = std(a(lesionMaskInit));
+std_b = std(b(lesionMaskInit));
+
+disp(meanL_lesion)
+disp(contrastL)
+% Set weights adaptively
+if contrastL > 10 && meanL_lesion < 70
+    w_L = 8.7; % High contrast & dark lesion → emphasize L*
+    disp('hey')
+else
+    w_L = 6.5; % Otherwise lower weight
+    disp('here')
+end
+
+if std_a > 5
+    w_a = 2.5; % lots of variation within lesion means we dont want to use this as segmentation criteria
+    disp('its a1')
+else
+    w_a = 1.0;
+end
+
+if std_b > 5
+    w_b = 2.5;
+    disp('its b1')
+else
+    w_b = 1.0;
+end
+
+if contrastL < 10
+    w_x = 0.1; % Low contrast → rely more on spatial continuity
+    w_y = 0.1;
+    disp('its 0.1 spatial')
+else
+    w_x = 0.5;
+    w_y = 0.5;
+end
+
+% ======= END ADAPTIVE FTR WEIGHT CALCULATION =======
+
 
 % Convert seed to row, col
 seedRow = seed(2); seedCol = seed(1);
@@ -61,6 +122,8 @@ if isDebug
     plot(seedCol, seedRow, 'r+', 'MarkerSize', 12, 'LineWidth', 2);
     title('Seed Point for Region Growing (L* channel)');
 end
+
+
 
 % ------------- Region Growing -------------
 % Extract seed feature vector
