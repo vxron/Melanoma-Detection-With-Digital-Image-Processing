@@ -1,14 +1,5 @@
 function pixel_labels = segmentKmeansAB2(labImg, k, numIterations, convergenceThresh, customWeights)
 % segmentKmeansAB - Performs K-means clustering in a*b* color space (Lab)
-%
-% Inputs:
-%   labIm - Lab color space image (output of rgb2lab(im2double(...)))
-%   k - number of clusters (e.g. 3)
-%   numIterations - max iterations for K-means
-%   convergenceThresh - threshold on cost difference for convergence
-%
-% Output:
-%   pixel_labels - 2D image of cluster labels for each pixel
 
 aStar = labImg(:,:,2);
 bStar = labImg(:,:,3);
@@ -28,9 +19,9 @@ Xdata = [abl, pos];  % Xdata = [L*, a*, b*, y, x]
 
 % Spatial weight parameter selected by inspection
 if nargin < 5
-    L_weight = 6.99;     % HIGH priority: lesion often darker
-    a_weight = 0.5;     % Moderate: distinguish red/green
-    b_weight = 0.5;     % Moderate: distinguish blue/yellow
+    L_weight = 6.99;      % HIGH priority: lesion often darker
+    a_weight = 0.5;       % Moderate: distinguish red/green
+    b_weight = 0.5;       % Moderate: distinguish blue/yellow
     spatialWeight = 1.48; % Low–medium: just enough to keep it compact
 else
     L_weight = customWeights(1);

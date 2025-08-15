@@ -2,7 +2,6 @@ function features = extractFeaturesFromImage(imagePath)
 % Extracts 4 features from a lesion image (no user interaction)
 % Output: [AsymmetryIndex, SuspiciousColorCount, Circularity, DarknessScore]
 
-    % Read input image
     rgbImg = imread(imagePath);
 
     % --- Limit size to max 500 x 700 (preserve aspect ratio) ---
@@ -22,14 +21,9 @@ function features = extractFeaturesFromImage(imagePath)
 
     % --- Segmentation (Otsu) ---
     mask = segmentOtsu(grayImg);
-    %labImg = rgb2lab(im2double(colorImg));
-    %mask=segmentKmeansAB2(labImg, 3, 50, 8);
 
     % --- Feature Extraction ---
-    % Convert to full-size mask (no cropping here)
     lesionMask = mask;
-
-    % RGB-masked image
     rgbMasked = bsxfun(@times, rgbImg, cast(lesionMask, 'like', rgbImg));
 
     AI = computeAsymmetryIndex(lesionMask);

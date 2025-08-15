@@ -1,10 +1,6 @@
 clc;
 close all;
 
-% STYLING
-% Camel Case for Variable Names
-% Underscored for Constant Parameters
-
 % ----------------------- 0 IMAGE READING GUI ----------------------
 [FILENAME, PATHNAME] = uigetfile('*.jpg', 'Select the Image');
 filePath = strcat(PATHNAME,FILENAME);
@@ -81,13 +77,6 @@ title('1.5. Gaussian Filter Output:');
 % (background) by finding a global intensity threshold that best separates
 % two classes: lesion pixels & skin/background pixels
 
-% todo: see most recent convo w chat...
-% not working to well with darker skin tones rn
-% todo 1: add centering first and logic to ask if returned mask is centered
-% and compact (not scattered across edges)
-% todo 2: play around with local histogram equalization rather than
-% brightening the whole image
-
 % Original Image Properties
 [rows, columns] = size(iSmooth);
 areaTot = rows*columns;
@@ -114,30 +103,6 @@ figure, imshow(iFilled);
 title('2.1. Binary (Segmented) Filled Image:');
 figure, imshow(iMaskedRgb);
 title('2.1. RGB Image Mask:');
-
-
-% ------------------------ 3 FEATURE EXTRACTION -----------------------
-% 3.1. Assymetry
-% Obtain Binarized Image Properties
-stats = regionprops(iOtsu,'all');
-% Obtain Area Values of All Blobs in Binarized Image
-allAreas = [stats.Area];
-% Find Largest Area
-[maxArea,maxIndx] = max(allAreas);
-% Check Symmetry
-centroids = [stats.Centroid];
-xCentroid = centroids(2*(maxIndx-1)+1);
-yCentroid = centroids(2*(maxIndx-1)+2);
-middlex = columns/2;
-middley = rows/2;
-deltax = middlex - xCentroid;
-deltay = middley - yCentroid;
-binaryImage = imtranslate(iOtsu, [deltax, deltay]);
-orientations = [stats.Orientation];
-angle = -1.*orientations(maxIndx);
-rotatedImage = imrotate(binaryImage, angle, 'crop');
-props2 = regionprops(rotatedImage,'all');
-imshow(rotatedImage);
 
 
 

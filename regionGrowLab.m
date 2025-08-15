@@ -1,13 +1,5 @@
 function lesionMask = regionGrowLab(labImg, seedOrMask, L_tol, isDebug)
 % regionGrowLab - Region growing in L*a*b* space from seed or user ROI mask.
-%
-% Inputs:
-%   labImg     - CIELab image (use rgb2lab(im2double(...)))
-%   seedOrMask - Either a binary ROI mask OR a seed coordinate [x, y]
-%   L_tol      - Tolerance threshold for L* similarity (e.g., 6–12)
-%
-% Output:
-%   lesionMask - Binary mask for lesion
 
 % ------------- Setup -------------
 max_bad_in_row = 2;  % how many consecutive "too bright" pixels allowed
@@ -25,13 +17,6 @@ tol_seed = L_tol * 1.8;
 distanceMap_region = nan(rows, cols);
 distanceMap_seed   = nan(rows, cols);
 
-% ---------------------- Feature Weights --------------------------
-w_L = 6.0;     % Strong weight for L*
-w_a = 0.6;     % Moderate for a*
-w_b = 0.6;     % Moderate for b*
-w_x = 0.05;     % Low for X spatial
-w_y = 0.05;     % Low for Y spatial
-
 % ------------- Get Seed -------------
 if islogical(seedOrMask)
     % Find darkest pixel inside the mask (lowest L* value)
@@ -42,12 +27,12 @@ if islogical(seedOrMask)
     [minVal, linearIdx] = min(L_masked(:));
     [rIdx, cIdx] = ind2sub(size(L_masked), linearIdx);
 
-    seed = [cIdx, rIdx];  % [x, y] format
+    seed = [cIdx, rIdx];
 elseif isnumeric(seedOrMask) && numel(seedOrMask) == 2
     if isDebug
         disp("detected seed!")
     end
-    seed = round(seedOrMask);  % assume [x, y] directly
+    seed = round(seedOrMask);
 else
     error('Second argument must be either a binary mask or [x, y] seed point.');
 end
@@ -81,38 +66,30 @@ disp(meanL_lesion)
 disp(contrastL)
 % Set weights adaptively
 if contrastL > 10 && meanL_lesion < 70
-    w_L = 8.7; % High contrast & dark lesion → emphasize L*
-    disp('hey')
+    w_L = 8.7; % High contrast & dark lesion so we emphasize L*
 else
     w_L = 6.5; % Otherwise lower weight
-    disp('here')
 end
 
 if std_a > 5
     w_a = 2.5; % lots of variation within lesion means we dont want to use this as segmentation criteria
-    disp('its a1')
 else
     w_a = 1.0;
 end
 
 if std_b > 5
     w_b = 2.5;
-    disp('its b1')
 else
     w_b = 1.0;
 end
 
 if contrastL < 10
-    w_x = 0.1; % Low contrast → rely more on spatial continuity
+    w_x = 0.1; % Low contrast so we rely more on spatial continuity
     w_y = 0.1;
-    disp('its 0.1 spatial')
 else
     w_x = 0.5;
     w_y = 0.5;
 end
-
-% ======= END ADAPTIVE FTR WEIGHT CALCULATION =======
-
 
 % Convert seed to row, col
 seedRow = seed(2); seedCol = seed(1);
@@ -122,7 +99,6 @@ if isDebug
     plot(seedCol, seedRow, 'r+', 'MarkerSize', 12, 'LineWidth', 2);
     title('Seed Point for Region Growing (L* channel)');
 end
-
 
 
 % ------------- Region Growing -------------
